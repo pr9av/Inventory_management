@@ -2,8 +2,10 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:google_sign_in/google_sign_in.dart';
+import 'package:aad_oauth/aad_oauth.dart';
+import 'package:aad_oauth/model/config.dart' as auth_config;
 import 'package:http/http.dart' as http;
+import '../main.dart';
 import 'dashboard_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -14,51 +16,34 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
-    scopes: ['email'],
-    clientId: '697508222834-1uf9q9n8ls7dam7d1dks78rmj7u6qqc9.apps.googleusercontent.com',
+  static final auth_config.Config config = auth_config.Config(
+    tenant: 'common', // Replace with your Tenant ID if strictly single-tenant
+    clientId: '0cde56fa-1ae9-4e58-a23f-1df78dffe979', 
+    scope: 'openid profile offline_access User.Read',
+    redirectUri: kIsWeb 
+        ? 'http://localhost:5173' 
+        : 'msauth://com.example.frontend/uAjnB1SZZB2oraYMvM%2BT71AFJTw%3D', 
+    navigatorKey: navigatorKey,
+    webUseRedirect: false, // True if you want a full-page redirect instead of popup
   );
+  
+  final AadOAuth oauth = AadOAuth(config);
   bool _isLoading = false;
 
-  Future<void> _handleGoogleSignIn() async {
+  Future<void> _handleMicrosoftSignIn() async {
     setState(() {
       _isLoading = true;
     });
 
     try {
-      final GoogleSignInAccount? account = await _googleSignIn.signIn();
+      // Prompt user login popup/browser
+      await oauth.login();
+      final String? accessToken = await oauth.getAccessToken();
 
-      if (account == null) {
-        // User canceled the login
-        setState(() {
-          _isLoading = false;
-        });
-        return;
-      }
-
-      GoogleSignInAuthentication? auth;
-      String? idToken;
-
-      try {
-        auth = await account.authentication;
-        idToken = auth.idToken;
-      } catch (e) {
-        print("Initial authentication object failed: $e");
-      }
-
-      // Web Fallback: If `idToken` is null, it's often because Google's new 
-      // GIS library on the web returns an access token, but strips the ID token 
-      // if `serverClientId` isn't strictly configured in the console. 
-      // We will grab whatever token is available.
-      if (idToken == null && kIsWeb) {
-         // Some versions of the plugin expose the raw serverAuthCode or accessToken
-         idToken = auth?.accessToken ?? account.serverAuthCode; 
-      }
-
-      if (idToken != null) {
-        await _authenticateWithBackend(idToken);
+      if (accessToken != null) {
+        await _authenticateWithBackend(accessToken);
       } else {
-        _showError('No ID Token received from Google.');
+        _showError('No Access Token received from Microsoft.');
       }
     } catch (error) {
       _showError('Sign in failed: \n$error');
@@ -69,14 +54,14 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> _authenticateWithBackend(String idToken) async {
-    // Use your laptop's Local IPv4 Address so the Android device can reach it over WiFi
-    const String apiUrl = 'http://192.168.1.4:3000/api/users/google-login'; 
+  Future<void> _authenticateWithBackend(String accessToken) async {
+    // Call the live Render URL for global access
+    const String apiUrl = 'https://inventory-management-p8tg.onrender.com/api/users/microsoft-login'; 
     try {
       final response = await http.post(
         Uri.parse(apiUrl),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'idToken': idToken}),
+        body: jsonEncode({'accessToken': accessToken}),
       );
 
       final data = jsonDecode(response.body);
@@ -90,11 +75,11 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       } else {
         _showError(data['message'] ?? 'Authentication failed');
-        await _googleSignIn.signOut();
+        await oauth.logout();
       }
     } catch (e) {
       _showError('Error connecting to backend: $e');
-      await _googleSignIn.signOut();
+      await oauth.logout();
     }
   }
 
@@ -150,17 +135,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   const CircularProgressIndicator()
                 else
                   ElevatedButton.icon(
-                    onPressed: _handleGoogleSignIn,
-                    icon: Image.network(
-                      'https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg',
-                      height: 24,
-                      width: 24,
-                      errorBuilder: (context, error, stackTrace) {
-                        return const Icon(Icons.g_mobiledata, size: 24, color: Colors.blue);
-                      },
-                    ),
+                    onPressed: _handleMicrosoftSignIn,
+                    icon: const Icon(Icons.window, color: Colors.blueAccent), // Simple placeholder for Microsoft logo
                     label: Text(
-                      'Sign in with Google',
+                      'Sign in with Microsoft',
                       style: GoogleFonts.inter(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,

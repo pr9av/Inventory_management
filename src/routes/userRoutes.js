@@ -25,14 +25,14 @@ router.post('/login', async (req, res) => {
     }
 });
 
-router.post('/google-login', async (req, res) => {
+router.post('/microsoft-login', async (req, res) => {
     try {
-        const { idToken } = req.body;
-        if (!idToken) {
-            return res.status(400).json({ success: false, message: 'ID Token is required' });
+        const { accessToken } = req.body;
+        if (!accessToken) {
+            return res.status(400).json({ success: false, message: 'Access Token is required' });
         }
 
-        const result = await userAuthService.handleGoogleLogin(idToken);
+        const result = await userAuthService.handleMicrosoftLogin(accessToken);
 
         res.status(200).json({
             success: true,

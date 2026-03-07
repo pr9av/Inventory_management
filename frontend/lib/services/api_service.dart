@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  // Use 10.0.2.2 for Android Emulator, localhost for iOS/Web
-  static const String baseUrl = 'http://192.168.1.4:3000/api';
+  // Live render URL for global connections
+  static const String baseUrl = 'https://inventory-management-p8tg.onrender.com/api';
 
   static Future<Map<String, dynamic>> scanHardware(String barcode) async {
     try {

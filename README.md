@@ -54,30 +54,76 @@ psql -U hardware_admin -d hardware_management -h localhost -f 04_triggers.sql
 4.  **Environment Variables**: Credentials should be stored in a `.env` file.
 5.  **SSL**: `DB_SSL_MODE=require` is recommended.
 
-## Connection String Example
+## 🚀 Environment Setup for New Developers
 
-```
-postgresql://hardware_admin:DatabaseSql@localhost:5432/hardware_management?sslmode=require
-```
+If you are cloning this repository to run your own instance, follow these steps to configure your own Database, Google API Keys, and Server bindings.
 
-## Testing the Application
-
-1. **Start the Backend:**
-   Open a terminal in the root folder (`Inventory_management`) and run:
-   ```bash
-   npm start
-   # or
-   node src/server.js
+### 1. Database Setup (Supabase)
+To establish the PostgreSQL database locally or in the cloud:
+1. Go to [Supabase](https://supabase.com) and create a free project.
+2. Go to **Project Settings > Database**.
+3. Scroll down to Connection String. **Check the box for "Use connection pooling"**.
+4. Copy the URL (it will look like `postgresql://postgres.[you]:[password]...`).
+5. Open the root folder of this repository, create a `.env` file, and set the Database URL:
+   ```env
+   DATABASE_URL="your_copied_pooler_url_here"
    ```
-   *You should see "Database connected successfully" and "Server is running on port 3000".*
-
-2. **Start the Frontend (Mobile App):**
-   Open another terminal in the `frontend` folder (`Inventory_management/frontend`) and run:
+6. Run the database setup script to generate tables and seed initial data:
    ```bash
-   flutter run
+   node migrate_supabase.js
    ```
-   *Note: For the best experience analyzing barcodes, use a physical device or a mobile emulator with camera routing enabled rather than the Chrome Web target.*
 
-3. **Verify Functionality:**
-   - Scan any barcode; the backend currently mocks a creation if the hardware doesn't exist.
-   - You can also test with the pre-seeded item which has the barcode `BARCODE_1`.
+### 2. Google Authentication (OAuth 2.0)
+You must generate your own Google Client ID to allow users to sign in.
+1. Go to the [Google Cloud Console](https://console.cloud.google.com).
+2. Create a new Project.
+3. Configure the **OAuth Consent Screen**.
+4. Go to Credentials -> **Create Credentials > OAuth client ID**.
+5. Choose **Web application**. Add your local URL (e.g., `http://localhost:3000`) and your live Render URL to the *Authorized JavaScript origins*.
+6. Copy the **Client ID** (Ends in `.apps.googleusercontent.com`).
+
+**Update the Backend Key:**
+In your `.env` file, add the Client ID and set your allowed organization domains:
+```env
+GOOGLE_CLIENT_ID="your_google_client_id_here"
+ALLOWED_DOMAIN="yourcompany.com"
+ALLOWED_TEST_EMAIL="your_personal_test_email@gmail.com"
+```
+
+**Update the Frontend Keys:**
+You must manually replace the hardcoded Google Client IDs in the Flutter codebase:
+1. Open `frontend/lib/screens/login_screen.dart` and update `clientId` in the `GoogleSignIn` constructor.
+2. Open `frontend/web/index.html` and update the `content` inside the `<meta name="google-signin-client_id">` tag.
+
+### 3. API Connection Strings
+Since the Flutter frontend runs on independent devices, it needs to know the absolute IP address or web URL of your Node.js backend.
+
+Search for and update the following variables to point to your laptop's Local IPv4 address (e.g. `192.168.1.xxx:3000`) or your live cloud deployment URL (e.g. `https://your-app.onrender.com`):
+
+1. **`frontend/lib/services/api_service.dart`**: Update `baseUrl`.
+   ```dart
+   static const String baseUrl = 'https://inventory-app.onrender.com/api'; // Or your local IP
+   ```
+2. **`frontend/lib/screens/login_screen.dart`**: Update `apiUrl` inside `_authenticateWithBackend()`.
+   ```dart
+   const String apiUrl = 'https://inventory-app.onrender.com/api/users/google-login';
+   ```
+
+### 4. Run the Application
+Start the Backend:
+```bash
+npm install
+npm start
+```
+
+Start the Frontend (in a new terminal):
+```bash
+cd frontend
+flutter pub get
+flutter run
+```
+
+To build a physical APK for Android:
+```bash
+flutter build apk --release
+```

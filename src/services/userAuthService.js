@@ -1,10 +1,5 @@
 const pool = require('../db');
-const { OAuth2Client } = require('google-auth-library');
 const axios = require('axios');
-
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
-
-
 const extractNameFromEmail = (email) => {
     const localPart = email.split('@')[0];
     return localPart
@@ -59,35 +54,34 @@ async function handleUserLogin(email) {
     }
 }
 
-async function handleGoogleLogin(idOrAccessToken) {
+async function handleMicrosoftLogin(accessToken) {
     let email;
     try {
-        // Try to verify token as standard IdToken first (Works for Mobile)
-        const ticket = await client.verifyIdToken({
-            idToken: idOrAccessToken,
-            audience: process.env.GOOGLE_CLIENT_ID, 
+        // Call Microsoft Graph API to get the user's profile
+        const userInfoResponse = await axios.get('https://graph.microsoft.com/v1.0/me', {
+            headers: {
+                Authorization: `Bearer ${accessToken}`
+            }
         });
-        const payload = ticket.getPayload();
-        email = payload.email.toLowerCase();
-    } catch (idTokenError) {
-        // If it fails, treat it as a raw Access Token (Common for Web without serverClientId)
-        try {
-            const userInfoResponse = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
-                headers: {
-                    Authorization: `Bearer ${idOrAccessToken}`
-                }
-            });
-            email = userInfoResponse.data.email.toLowerCase();
-        } catch (accessTokenError) {
-            throw new Error("Invalid Google Token (Not a valid ID or Access Token)");
+        
+        // Microsoft returns the email in either 'mail' or 'userPrincipalName'
+        const rawEmail = userInfoResponse.data.mail || userInfoResponse.data.userPrincipalName;
+        if (!rawEmail) {
+            throw new Error("No email found in Microsoft profile.");
         }
+        email = rawEmail.toLowerCase();
+        
+    } catch (error) {
+        throw new Error("Invalid Microsoft Token or Graph API rejection.");
     }
-    const allowedDomain = process.env.ALLOWED_DOMAIN || 'blauplug.com';
-    const allowedTestEmail = process.env.ALLOWED_TEST_EMAIL; // Accept a specific testing email via .env
     
-    // Domain Check (bypassed if email matches exact test email)
+    // Default organization lock
+    const allowedDomain = process.env.ALLOWED_DOMAIN || 'blauplug.com';
+    const allowedTestEmail = process.env.ALLOWED_TEST_EMAIL; 
+    
+    // Domain Check 
     if (!email.endsWith(`@${allowedDomain}`) && email !== allowedTestEmail) {
-        throw new Error(`Only @${allowedDomain} emails are allowed`);
+        throw new Error(`Only @${allowedDomain} and authorized testing emails are allowed`);
     }
 
     const dbClient = await pool.connect();
@@ -129,5 +123,5 @@ async function handleGoogleLogin(idOrAccessToken) {
 
 module.exports = {
     handleUserLogin,
-    handleGoogleLogin
+    handleMicrosoftLogin
 };
