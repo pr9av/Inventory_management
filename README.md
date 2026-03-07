@@ -1,65 +1,22 @@
-# Hardware Tracking Database Setup
+# Warehouse Tracking SaaS Platform
 
-This directory contains the SQL scripts and configuration examples for setting up the PostgreSQL database for the Hardware Tracking System.
+This repository houses a modern, production-grade Hardware Inventory Management system. It features a scalable Node.js/PostgreSQL backend and a beautiful, Glassmorphism-styled Flutter frontend designed to imitate top-tier SaaS dashboards like Blinkit and Linear.
 
-## Prerequisites
+## Core Features
+1. **Interactive SaaS Dashboard**: Soft-shadow cards, progress steppers, and dynamic status badges.
+2. **Lightning-Fast Barcode Scanner**: Optimized mobile camera detection with zero duplicate-scan latency.
+3. **Dynamic Hardware Registration**: Unknown barcodes trigger an automatic registration popup dialog on the fly.
+4. **Geospatial Processing**: Enforced GPS tracking with simulated map interfaces to verify physical location boundaries before assignment.
+5. **Enterprise SSO Validation**: Organizational-level authentication via Microsoft Azure Active Directory, complete with domain-locking (`@yourcompany.com`).
 
-- PostgreSQL (v13 or higher recommended) installed and running.
-- `psql` command-line tool available.
+---
 
-## Setup Instructions
+## 🚀 Environment Setup for Developers
 
-Run the scripts in the following order.
+If you are cloning this repository to spin up your own instance, follow these steps to configure your Database, Microsoft Azure Auth, and Backend server.
 
-### 1. Create Role
-Run as superuser (e.g., `postgres`).
-
-```bash
-psql -U postgres -f 00_create_role.sql
-```
-
-### 2. Create Database
-Run as superuser.
-
-```bash
-psql -U postgres -f 01_create_database.sql
-```
-
-### 3. Security Setup
-Run as superuser (or database owner) to apply security restrictions.
-
-```bash
-psql -U postgres -d hardware_management -f 02_security_setup.sql
-```
-
-### 4. Schema Creation
-Run as `hardware_admin` or superuser. The script sets the role to `hardware_admin` internally to ensure ownership.
-
-```bash
-psql -U hardware_admin -d hardware_management -h localhost -f 03_schema.sql
-```
-
-### 5. Triggers
-Run as `hardware_admin`.
-
-```bash
-psql -U hardware_admin -d hardware_management -h localhost -f 04_triggers.sql
-```
-
-## Security Best Practices implemented
-
-1.  **Strict Role**: `hardware_admin` has no superuser or create db privileges.
-2.  **Least Privilege**: Public access to the implementation database is fully revoked.
-3.  **Owner Separation**: Database and objects are owned by `hardware_admin`, not `postgres`.
-4.  **Environment Variables**: Credentials should be stored in a `.env` file.
-5.  **SSL**: `DB_SSL_MODE=require` is recommended.
-
-## 🚀 Environment Setup for New Developers
-
-If you are cloning this repository to run your own instance, follow these steps to configure your own Database, Google API Keys, and Server bindings.
-
-### 1. Database Setup (Supabase)
-To establish the PostgreSQL database locally or in the cloud:
+### 1. Database Setup (Supabase / PostgreSQL)
+You need a PostgreSQL database. The easiest method is to use a free cloud instance.
 1. Go to [Supabase](https://supabase.com) and create a free project.
 2. Go to **Project Settings > Database**.
 3. Scroll down to Connection String. **Check the box for "Use connection pooling"**.
@@ -68,62 +25,74 @@ To establish the PostgreSQL database locally or in the cloud:
    ```env
    DATABASE_URL="your_copied_pooler_url_here"
    ```
-6. Run the database setup script to generate tables and seed initial data:
+6. Run the real schema setup script to construct the `hardware` and `movement_logs` tables along with required triggers:
    ```bash
-   node migrate_supabase.js
+   node setup_real_schema.js
    ```
 
-### 2. Google Authentication (OAuth 2.0)
-You must generate your own Google Client ID to allow users to sign in.
-1. Go to the [Google Cloud Console](https://console.cloud.google.com).
-2. Create a new Project.
-3. Configure the **OAuth Consent Screen**.
-4. Go to Credentials -> **Create Credentials > OAuth client ID**.
-5. Choose **Web application**. Add your local URL (e.g., `http://localhost:3000`) and your live Render URL to the *Authorized JavaScript origins*.
-6. Copy the **Client ID** (Ends in `.apps.googleusercontent.com`).
+### 2. Microsoft Authentication (Azure AD)
+The platform is locked to Microsoft Organizational accounts. You must generate your own Azure Client ID.
+1. Go to the [Azure Portal](https://portal.azure.com/).
+2. Search for **App Registrations** and click **New registration**.
+3. Name it (e.g., "Hardware Tracker SSO"). Choose your supported account types (Single Tenant or Multi-Tenant).
+4. For the **Redirect URI**, select **Single-page application (SPA)** and enter `http://localhost:5173/` for local testing.
+5. Once created, copy the **Application (client) ID** and the **Directory (tenant) ID**.
 
-**Update the Backend Key:**
-In your `.env` file, add the Client ID and set your allowed organization domains:
+**Update the Backend Environment Variables:**
+Add the Azure credentials to your `.env` file to enforce organizational locking:
 ```env
-GOOGLE_CLIENT_ID="your_google_client_id_here"
-ALLOWED_DOMAIN="yourcompany.com"
-ALLOWED_TEST_EMAIL="your_personal_test_email@gmail.com"
+MICROSOFT_CLIENT_ID="your_azure_client_id_here"
+MICROSOFT_TENANT_ID="common" # Or your specific Tenant ID
+ALLOWED_DOMAIN="yourcompany.com" # Locks login to this domain
+ALLOWED_TEST_EMAIL="your_personal_test_email@outlook.com" # Bypass for testing
+PORT=3000
 ```
 
-**Update the Frontend Keys:**
-You must manually replace the hardcoded Google Client IDs in the Flutter codebase:
-1. Open `frontend/lib/screens/login_screen.dart` and update `clientId` in the `GoogleSignIn` constructor.
-2. Open `frontend/web/index.html` and update the `content` inside the `<meta name="google-signin-client_id">` tag.
+### 3. Flutter Frontend Configuration
+The frontend needs to know where your backend API lives and what your Microsoft Client ID is.
 
-### 3. API Connection Strings
-Since the Flutter frontend runs on independent devices, it needs to know the absolute IP address or web URL of your Node.js backend.
-
-Search for and update the following variables to point to your laptop's Local IPv4 address (e.g. `192.168.1.xxx:3000`) or your live cloud deployment URL (e.g. `https://your-app.onrender.com`):
-
-1. **`frontend/lib/services/api_service.dart`**: Update `baseUrl`.
+1. **API Connection (`frontend/lib/services/api_service.dart`)**:
+   Point this to your local server IP (e.g., `http://192.168.1.xxx:3000/api`) or your live deployed cloud URL (e.g., `https://your-production-backend.onrender.com/api`).
    ```dart
-   static const String baseUrl = 'https://inventory-app.onrender.com/api'; // Or your local IP
-   ```
-2. **`frontend/lib/screens/login_screen.dart`**: Update `apiUrl` inside `_authenticateWithBackend()`.
-   ```dart
-   const String apiUrl = 'https://inventory-app.onrender.com/api/users/google-login';
+   static const String baseUrl = 'https://your-production-backend.onrender.com/api';
    ```
 
-### 4. Run the Application
-Start the Backend:
+2. **Auth Intercept (`frontend/lib/screens/login_screen.dart`)**:
+   Update the `Config` block in the login screen so Flutter can ping your Azure App.
+   ```dart
+   final Config config = Config(
+      tenant: 'common', 
+      clientId: 'YOUR_AZURE_CLIENT_ID_HERE', // Inject your Client ID
+      scope: 'openid profile email User.Read',
+      redirectUri: kIsWeb ? 'http://localhost:5173/' : 'msauth://com.inventory.app/signature',
+      navigatorKey: navigatorKey,
+   );
+   ```
+
+---
+
+## 💻 Running the Application
+
+### Start the Node.js Backend
+Ensure your `.env` is configured, then boot the server:
 ```bash
 npm install
 npm start
 ```
 
-Start the Frontend (in a new terminal):
+### Start the Flutter Frontend (Web)
+Open a new terminal and run Flutter on the specific port you registered with Azure (e.g., 5173):
 ```bash
 cd frontend
 flutter pub get
-flutter run
+flutter run -d chrome --web-port 5173
 ```
 
-To build a physical APK for Android:
+### Build the Android Mobile App (APK)
+To package the application for Android deployment so workers can use their phone cameras to scan warehouse barcodes:
 ```bash
+cd frontend
 flutter build apk --release
 ```
+The compiled output will be available at:
+`frontend\build\app\outputs\flutter-apk\app-release.apk`
