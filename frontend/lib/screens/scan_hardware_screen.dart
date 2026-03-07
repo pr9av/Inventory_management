@@ -9,9 +9,13 @@ class ScanHardwareScreen extends StatefulWidget {
 }
 
 class _ScanHardwareScreenState extends State<ScanHardwareScreen> {
+  bool _hasScanned = false;
+  
   final MobileScannerController _scannerController = MobileScannerController(
-    detectionSpeed: DetectionSpeed.normal,
+    detectionSpeed: DetectionSpeed.noDuplicates,
     facing: CameraFacing.back,
+    torchEnabled: false,
+    returnImage: false, // Prevents creating heavy memory images if not needed
   );
 
   @override
@@ -38,11 +42,15 @@ class _ScanHardwareScreenState extends State<ScanHardwareScreen> {
           MobileScanner(
             controller: _scannerController,
             onDetect: (capture) {
+              if (_hasScanned) return;
+              
               final List<Barcode> barcodes = capture.barcodes;
               for (final barcode in barcodes) {
                 if (barcode.rawValue != null) {
+                  _hasScanned = true;
                   _scannerController.stop();
                   Navigator.pop(context, barcode.rawValue);
+                  break; 
                 }
               }
             },
