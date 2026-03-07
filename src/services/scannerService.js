@@ -22,20 +22,12 @@ async function handleHardwareScan(hardwareCode) {
             };
         }
 
-        const insertQuery = `
-            INSERT INTO hardware (hardware_name, barcode_value, current_location_id, status, current_loc)
-            VALUES ($1, $2, 1, 'IN_STOCK', 'Unknown')
-            RETURNING *
-        `;
-        const insertResult = await client.query(insertQuery, [hardwareCode, hardwareCode]);
+        await client.query('ROLLBACK');
+        
+        const error = new Error('Hardware not found');
+        error.statusCode = 404;
+        throw error;
 
-        await client.query('COMMIT');
-
-        return {
-            step: 2,
-            status: "HARDWARE_CREATED",
-            hardware: insertResult.rows[0]
-        };
     } catch (error) {
         await client.query('ROLLBACK');
         throw error;
